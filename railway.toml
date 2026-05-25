@@ -1,0 +1,9 @@
+# Railway — SOIP.KEYRA.IE sovereign operational intelligence platform
+
+[build]
+builder = "nixpacks"
+
+[deploy]
+startCommand = "/bin/sh -c \"npm run deploy:db && exec npm run start\""
+healthcheckPath = "/"
+healthcheckTimeout = 300

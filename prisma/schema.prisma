@@ -1,0 +1,529 @@
+// SOIP — Sovereign Operational Intelligence Platform
+// PostgreSQL schema isolated in `keyra_soip`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["keyra_soip"]
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum SourceSystem {
+  SOIP
+  CIRIGHT
+  HYBRID
+
+  @@schema("keyra_soip")
+}
+
+enum SyncStatus {
+  SYNCED
+  PARTIAL
+  PENDING
+  CONFLICT
+  STALE
+
+  @@schema("keyra_soip")
+}
+
+enum OperationalMode {
+  SIMULATION
+  HYBRID
+  LIVE
+
+  @@schema("keyra_soip")
+}
+
+enum EntityKind {
+  HUMAN
+  AI_AGENT
+  ANDROID
+  THING
+
+  @@schema("keyra_soip")
+}
+
+enum AuthState {
+  AUTHENTICATED
+  UNAUTHENTICATED
+  HUMAN_LINKED
+  ORPHANED
+  SOVEREIGN_LINKED
+
+  @@schema("keyra_soip")
+}
+
+enum PersonaType {
+  EXECUTIVE
+  OPERATOR
+  ANALYST
+  REGULATOR
+  DEVELOPER
+  EMBASSY
+  CITIZEN
+  SYSTEM
+
+  @@schema("keyra_soip")
+}
+
+enum SovereignNodeType {
+  WORLD
+  CONTINENT
+  REGION
+  COUNTRY
+  STATE
+  COUNTY
+  ORGANIZATION
+  OFFICE
+  TEAM
+
+  @@schema("keyra_soip")
+}
+
+enum ContractType {
+  GOVERNMENT
+  TELCO
+  BANKING
+  ENTERPRISE
+  SMB
+  FAMILY
+  INDIVIDUAL
+  AFFILIATE
+  REPRESENTATIVE
+  DEVELOPER
+  REGIONAL_OPERATIONS_PARTNER
+  EMBASSY
+  UNIVERSITY
+  OEM
+  INFRASTRUCTURE_PROVIDER
+
+  @@schema("keyra_soip")
+}
+
+enum TreatyStatus {
+  JOINED
+  APPROVED
+  PENDING
+  REJECTED
+  ENFORCING
+
+  @@schema("keyra_soip")
+}
+
+enum ThingCategory {
+  CAR
+  TRUCK
+  DRONE
+  BIKE
+  ROBOT
+  INDUSTRIAL_MACHINE
+  INFRASTRUCTURE
+  IOT
+  TELECOM_INFRASTRUCTURE
+
+  @@schema("keyra_soip")
+}
+
+enum AnimalCategory {
+  CATTLE
+  SHEEP
+  GOAT
+  HORSE
+  DOG
+  CAT
+  MARINE_MAMMAL
+  WHALE
+  DOLPHIN
+  ENDANGERED
+  WILDLIFE
+
+  @@schema("keyra_soip")
+}
+
+enum TrustTransactionType {
+  LOGIN
+  APPROVAL
+  PAYMENT
+  EMBASSY_AUTHORIZATION
+  ESIM_ACTIVATION
+  AI_EXECUTION
+  CONTRACT_APPROVAL
+  BORDER_VERIFICATION
+  TELECOM_TRUST_EXCHANGE
+  AUTHENTICATION
+
+  @@schema("keyra_soip")
+}
+
+enum RevenueType {
+  KEYRA
+  COUNTRY
+  TELCO
+  REGIONAL_OPERATOR
+  SDK
+  AUTHENTICATION_UTILITY
+  SOVEREIGN_OPERATIONAL
+
+  @@schema("keyra_soip")
+}
+
+// ─── Sync & Identity ─────────────────────────────────────────────────────────
+
+model SyncObject {
+  id               String       @id @default(cuid())
+  edObjectId       String?      @unique @map("ed_object_id")
+  cirightObjectId  String?      @map("ciright_object_id")
+  sourceSystem     SourceSystem @default(SOIP) @map("source_system")
+  syncStatus       SyncStatus   @default(PENDING) @map("sync_status")
+  syncConfidence   Float        @default(0) @map("sync_confidence")
+  lastSyncedAt     DateTime?    @map("last_synced_at")
+  objectType       String       @map("object_type")
+  metadata         Json?
+  createdAt        DateTime     @default(now()) @map("created_at")
+  updatedAt        DateTime     @updatedAt @map("updated_at")
+
+  @@index([cirightObjectId])
+  @@index([objectType, syncStatus])
+  @@map("sync_objects")
+  @@schema("keyra_soip")
+}
+
+model UniversalIdentity {
+  id              String    @id @default(cuid())
+  uid             String    @unique
+  phoneE164       String?   @map("phone_e164")
+  displayName     String?   @map("display_name")
+  verifiedHuman   Boolean   @default(false) @map("verified_human")
+  verifiedDevice  Boolean   @default(false) @map("verified_device")
+  syncObjectId    String?   @map("sync_object_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  enterpriseIdentities EnterpriseIdentity[]
+  teamAuthorizations   TeamAuthorization[]
+
+  @@map("universal_identities")
+  @@schema("keyra_soip")
+}
+
+model EnterpriseIdentity {
+  id              String   @id @default(cuid())
+  eid             String   @unique
+  uidId           String   @map("uid_id")
+  label           String
+  organizationId  String?  @map("organization_id")
+  personaType     PersonaType @default(OPERATOR) @map("persona_type")
+  territoryScope  String?  @map("territory_scope")
+  isActive        Boolean  @default(true) @map("is_active")
+  syncObjectId    String?  @map("sync_object_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  uid UniversalIdentity @relation(fields: [uidId], references: [id], onDelete: Cascade)
+
+  @@index([uidId])
+  @@map("enterprise_identities")
+  @@schema("keyra_soip")
+}
+
+model TeamAuthorization {
+  id                String      @id @default(cuid())
+  teamId            String      @map("team_id")
+  uidId             String      @map("uid_id")
+  personaType       PersonaType @default(OPERATOR) @map("persona_type")
+  territoryScope    Json?       @map("territory_scope")
+  organizationScope Json?       @map("organization_scope")
+  jurisdictionScope Json?       @map("jurisdiction_scope")
+  contractRights    Json?       @map("contract_rights")
+  subscriptionId    String?     @map("subscription_id")
+  syncObjectId      String?     @map("sync_object_id")
+  createdAt         DateTime    @default(now()) @map("created_at")
+  updatedAt         DateTime    @updatedAt @map("updated_at")
+
+  uid UniversalIdentity @relation(fields: [uidId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, uidId])
+  @@index([teamId])
+  @@map("team_authorizations")
+  @@schema("keyra_soip")
+}
+
+// ─── Territory & Sovereign Nodes ─────────────────────────────────────────────
+
+model SovereignNode {
+  id              String            @id @default(cuid())
+  code            String            @unique
+  name            String
+  nodeType        SovereignNodeType @map("node_type")
+  parentId        String?           @map("parent_id")
+  operationalMode OperationalMode   @default(SIMULATION) @map("operational_mode")
+  isoAlpha2       String?           @map("iso_alpha2")
+  metadata        Json?
+  syncObjectId    String?           @map("sync_object_id")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+
+  parent   SovereignNode?  @relation("NodeHierarchy", fields: [parentId], references: [id])
+  children SovereignNode[] @relation("NodeHierarchy")
+
+  countrySimulation CountrySimulation?
+  trustTransactions TrustTransaction[]
+  regulatoryEntries RegulatoryTreaty[]
+
+  @@index([nodeType])
+  @@index([parentId])
+  @@map("sovereign_nodes")
+  @@schema("keyra_soip")
+}
+
+// ─── Simulation Engine ───────────────────────────────────────────────────────
+
+model CountrySimulation {
+  id                  String          @id @default(cuid())
+  sovereignNodeId     String          @unique @map("sovereign_node_id")
+  isoAlpha2           String          @unique @map("iso_alpha2")
+  population          BigInt
+  demographics        Json
+  workforce           Json
+  telecom             Json
+  banking             Json
+  government          Json
+  economy             Json
+  humanMovement       Json              @map("human_movement")
+  operationalMode     OperationalMode   @default(SIMULATION) @map("operational_mode")
+  simulationQuality   Float             @default(0.85) @map("simulation_quality")
+  lastAgentUpdate     DateTime?           @map("last_agent_update")
+  createdAt           DateTime          @default(now()) @map("created_at")
+  updatedAt           DateTime          @updatedAt @map("updated_at")
+
+  sovereignNode SovereignNode @relation(fields: [sovereignNodeId], references: [id], onDelete: Cascade)
+
+  @@map("country_simulations")
+  @@schema("keyra_soip")
+}
+
+// ─── Trust & Telemetry ───────────────────────────────────────────────────────
+
+model TrustTransaction {
+  id              String               @id @default(cuid())
+  transactionType TrustTransactionType @map("transaction_type")
+  sovereignNodeId String?              @map("sovereign_node_id")
+  entityKind      EntityKind           @map("entity_kind")
+  authState       AuthState            @map("auth_state")
+  trustValue      Float                @default(0) @map("trust_value")
+  eventValue      Float                @default(0) @map("event_value")
+  jurisdiction    String?
+  metadata        Json?
+  occurredAt      DateTime             @default(now()) @map("occurred_at")
+
+  sovereignNode SovereignNode? @relation(fields: [sovereignNodeId], references: [id])
+  revenueEvents RevenueEvent[]
+
+  @@index([occurredAt])
+  @@index([sovereignNodeId])
+  @@map("trust_transactions")
+  @@schema("keyra_soip")
+}
+
+model GlobalMetricSnapshot {
+  id                        String   @id @default(cuid())
+  worldHumanPopulation      BigInt   @map("world_human_population")
+  authenticatedHumans       BigInt   @map("authenticated_humans")
+  trustedHumanRelationships BigInt   @map("trusted_human_relationships")
+  authenticatedAiAgents     BigInt   @map("authenticated_ai_agents")
+  humanLinkedAiAgents       BigInt   @map("human_linked_ai_agents")
+  authenticatedAndroids     BigInt   @map("authenticated_androids")
+  authenticatedThings       BigInt   @map("authenticated_things")
+  trustTps                  Float    @map("trust_tps")
+  operationalSovereignNodes   Int      @map("operational_sovereign_nodes")
+  activeSecureSessions      BigInt   @map("active_secure_sessions")
+  operationalMode           OperationalMode @default(SIMULATION) @map("operational_mode")
+  capturedAt                DateTime @default(now()) @map("captured_at")
+
+  @@index([capturedAt])
+  @@map("global_metric_snapshots")
+  @@schema("keyra_soip")
+}
+
+// ─── Contracts ───────────────────────────────────────────────────────────────
+
+model Contract {
+  id           String       @id @default(cuid())
+  contractType ContractType @map("contract_type")
+  title        String
+  groupName    String?      @map("group_name")
+  phase        String?
+  subtype      String?
+  territoryScope Json?      @map("territory_scope")
+  jurisdictionScope Json?   @map("jurisdiction_scope")
+  syncObjectId String?      @map("sync_object_id")
+  metadata     Json?
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  clauses ContractClause[]
+
+  @@map("contracts")
+  @@schema("keyra_soip")
+}
+
+model ContractClause {
+  id                  String  @id @default(cuid())
+  contractId          String  @map("contract_id")
+  clauseNumber        String  @map("clause_number")
+  clauseTitle         String  @map("clause_title")
+  clauseText          String  @map("clause_text") @db.Text
+  operationalEffect   String? @map("operational_effect") @db.Text
+  permissions         Json?
+  obligations         Json?
+  revenueImplications Json?   @map("revenue_implications")
+  territoryScope      Json?   @map("territory_scope")
+  jurisdictionScope   Json?   @map("jurisdiction_scope")
+  enforcementRules    Json?   @map("enforcement_rules")
+  workflowTriggers    Json?   @map("workflow_triggers")
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  contract Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([contractId])
+  @@map("contract_clauses")
+  @@schema("keyra_soip")
+}
+
+// ─── Revenue ─────────────────────────────────────────────────────────────────
+
+model RevenueEvent {
+  id                  String      @id @default(cuid())
+  trustTransactionId  String?     @map("trust_transaction_id")
+  revenueType         RevenueType @map("revenue_type")
+  amount              Float
+  currency            String      @default("EUR")
+  jurisdiction        String?
+  countryCode         String?     @map("country_code")
+  telcoId             String?     @map("telco_id")
+  operatorId          String?     @map("operator_id")
+  splitRules          Json?       @map("split_rules")
+  occurredAt          DateTime    @default(now()) @map("occurred_at")
+
+  trustTransaction TrustTransaction? @relation(fields: [trustTransactionId], references: [id])
+
+  @@index([occurredAt])
+  @@map("revenue_events")
+  @@schema("keyra_soip")
+}
+
+// ─── Regulatory ──────────────────────────────────────────────────────────────
+
+model RegulatoryTreaty {
+  id                String       @id @default(cuid())
+  sovereignNodeId   String       @map("sovereign_node_id")
+  treatyCode        String       @map("treaty_code")
+  treatyName        String       @map("treaty_name")
+  status            TreatyStatus @default(PENDING)
+  authority         String?
+  obligations       Json?
+  enforcementStatus String?      @map("enforcement_status")
+  metadata          Json?
+  createdAt         DateTime     @default(now()) @map("created_at")
+  updatedAt         DateTime     @updatedAt @map("updated_at")
+
+  sovereignNode SovereignNode @relation(fields: [sovereignNodeId], references: [id], onDelete: Cascade)
+
+  @@unique([sovereignNodeId, treatyCode])
+  @@map("regulatory_treaties")
+  @@schema("keyra_soip")
+}
+
+// ─── PLTL / PFTL / Things ──────────────────────────────────────────────────────
+
+model AuthenticatedEntity {
+  id           String         @id @default(cuid())
+  entityKind   EntityKind     @map("entity_kind")
+  authState    AuthState      @map("auth_state")
+  label        String
+  sovereignNodeId String?     @map("sovereign_node_id")
+  thingCategory ThingCategory? @map("thing_category")
+  animalCategory AnimalCategory? @map("animal_category")
+  satNamsId    String?        @map("sat_nams_id")
+  metadata     Json?
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
+
+  @@index([entityKind, authState])
+  @@map("authenticated_entities")
+  @@schema("keyra_soip")
+}
+
+model ForestryZone {
+  id              String   @id @default(cuid())
+  sovereignNodeId String?  @map("sovereign_node_id")
+  name            String
+  zoneType        String   @map("zone_type")
+  areaHectares    Float?   @map("area_hectares")
+  carbonSensitive Boolean  @default(false) @map("carbon_sensitive")
+  metadata        Json?
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@map("forestry_zones")
+  @@schema("keyra_soip")
+}
+
+// ─── Widgets & Angel Agents ──────────────────────────────────────────────────
+
+model SoipWidget {
+  id           String   @id @default(cuid())
+  widgetKey    String   @unique @map("widget_key")
+  title        String
+  description  String?
+  sortOrder    Int      @default(0) @map("sort_order")
+  isActive     Boolean  @default(true) @map("is_active")
+  agentConfig  Json?    @map("agent_config")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  agentSessions AngelAgentSession[]
+
+  @@map("soip_widgets")
+  @@schema("keyra_soip")
+}
+
+model AngelAgentSession {
+  id           String   @id @default(cuid())
+  widgetId     String   @map("widget_id")
+  sessionKey   String   @map("session_key")
+  uidContext   String?  @map("uid_context")
+  eidContext   String?  @map("eid_context")
+  teamId       String?  @map("team_id")
+  territoryScope Json?  @map("territory_scope")
+  memory       Json?
+  auditLog     Json?    @map("audit_log")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  widget SoipWidget @relation(fields: [widgetId], references: [id], onDelete: Cascade)
+
+  @@index([widgetId, sessionKey])
+  @@map("angel_agent_sessions")
+  @@schema("keyra_soip")
+}
+
+model SyncHealthCheck {
+  id              String   @id @default(cuid())
+  sourceSystem    SourceSystem @map("source_system")
+  objectType      String   @map("object_type")
+  totalObjects    Int      @map("total_objects")
+  syncedCount     Int      @map("synced_count")
+  partialCount    Int      @map("partial_count")
+  conflictCount   Int      @map("conflict_count")
+  avgConfidence   Float    @map("avg_confidence")
+  checkedAt       DateTime @default(now()) @map("checked_at")
+
+  @@index([checkedAt])
+  @@map("sync_health_checks")
+  @@schema("keyra_soip")
+}

@@ -1,0 +1,205 @@
+/**
+ * Design-system utility classes — agent.md §0.4–§0.8, §2.2.
+ */
+
+.ds-display-sm {
+  font-family: var(--ds-font-sans);
+  font-size: 1.375rem;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  color: var(--ds-ink);
+}
+
+.ds-title-sm {
+  font-family: var(--ds-font-sans);
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--ds-ink);
+}
+
+.ds-body-sm {
+  font-family: var(--ds-font-sans);
+  font-size: 0.875rem;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--ds-body);
+}
+
+.ds-caption {
+  font-family: var(--ds-font-sans);
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--ds-muted);
+}
+
+.ds-caption-uppercase {
+  font-family: var(--ds-font-sans);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ds-body);
+}
+
+.ds-numeric {
+  font-family: var(--ds-font-accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.ds-btn-primary,
+.ds-btn-secondary,
+.ds-btn-tertiary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 10px 18px;
+  font-family: var(--ds-font-sans);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1;
+  border-radius: var(--ds-radius-md);
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    background-color var(--ds-motion-base) var(--ds-ease),
+    border-color var(--ds-motion-base) var(--ds-ease),
+    color var(--ds-motion-base) var(--ds-ease);
+}
+
+.ds-btn-primary {
+  background: var(--ds-primary);
+  color: var(--ds-on-primary);
+  border: none;
+}
+.ds-btn-primary:hover { background: var(--ds-primary-active); }
+
+.ds-btn-secondary {
+  background: var(--ds-surface-card);
+  color: var(--ds-ink);
+  border: 1px solid var(--ds-hairline-strong);
+}
+.ds-btn-secondary:hover { background: var(--ds-canvas-soft); }
+
+.ds-btn-tertiary {
+  background: transparent;
+  color: var(--ds-text-link);
+  border: none;
+  min-height: auto;
+  padding: 8px 0;
+}
+.ds-btn-tertiary:hover { color: var(--ds-text-link-2); }
+
+.ds-btn-primary.is-sm,
+.ds-btn-secondary.is-sm {
+  min-height: 32px;
+  padding: 6px 12px;
+  font-size: 13px;
+  border-radius: var(--ds-radius-sm);
+}
+
+.ds-btn-primary:disabled,
+.ds-btn-secondary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.ds-text-input {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  padding: 12px 16px;
+  background: var(--ds-surface-card);
+  color: var(--ds-ink);
+  font-family: var(--ds-font-sans);
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.4;
+  border: 1px solid var(--ds-hairline-strong);
+  border-radius: var(--ds-radius-md);
+  outline: none;
+  transition: border-color var(--ds-motion-base) var(--ds-ease);
+}
+
+.ds-text-input::placeholder { color: var(--ds-muted-soft); }
+
+.ds-text-input.is-sm {
+  min-height: 36px;
+  padding: 8px 12px;
+  font-size: 14px;
+}
+
+.ds-field-label {
+  display: block;
+  font: 600 13px/1 var(--ds-font-sans);
+  color: var(--ds-ink);
+  margin-bottom: 6px;
+}
+
+.ds-feature-card {
+  background: var(--ds-surface-card);
+  border: 1px solid var(--ds-hairline-strong);
+  border-radius: var(--ds-radius-lg);
+  padding: 24px;
+  transition: box-shadow var(--ds-motion-base) var(--ds-ease);
+}
+
+.ds-feature-card.is-dashboard {
+  padding: 20px;
+}
+
+.ds-feature-card:hover {
+  box-shadow: var(--ds-shadow-soft);
+}
+
+.ds-badge-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  background: var(--ds-surface-strong);
+  color: var(--ds-ink);
+  font-family: var(--ds-font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border-radius: var(--ds-radius-pill);
+}
+
+.ds-text-link {
+  color: var(--ds-text-link);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: color var(--ds-motion-base) var(--ds-ease);
+}
+
+.ds-text-link:hover {
+  color: var(--ds-text-link-2);
+}
+
+:focus-visible {
+  outline: 2px solid var(--ds-ink);
+  outline-offset: 3px;
+}
+
+.material-symbols-outlined {
+  font-family: "Material Symbols Outlined";
+  font-weight: normal;
+  font-style: normal;
+  font-size: 20px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  font-feature-settings: "liga";
+  -webkit-font-smoothing: antialiased;
+}

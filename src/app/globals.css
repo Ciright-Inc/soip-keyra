@@ -1,0 +1,348 @@
+@import "tailwindcss";
+@import "../styles/design-tokens.css";
+@import "../styles/ds-components.css";
+@import "../styles/admin-dashboard.css";
+
+@theme inline {
+  --font-sans: var(--ds-font-sans);
+  --font-mono: ui-monospace, monospace;
+}
+
+:root {
+  --ds-font-sans: var(--font-inter), Inter, -apple-system, system-ui, sans-serif;
+  --ds-font-accent: var(--font-montserrat), Montserrat, ui-sans-serif, system-ui, sans-serif;
+  --ds-input-focus-border: #c4c8cf;
+  --ds-input-focus-ring: rgba(96, 100, 108, 0.1);
+}
+
+html {
+  color-scheme: light;
+}
+
+body {
+  font-family: var(--ds-font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  background: var(--ds-canvas-soft);
+  color: var(--ds-ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* SOIP signal levels — semantic tokens only (agent.md §0.3) */
+.soip-signal-critical { color: var(--ds-error); }
+.soip-signal-elevated { color: var(--ds-warning); }
+.soip-signal-nominal { color: var(--ds-success); }
+.soip-signal-quiet { color: var(--ds-muted); }
+
+/* KPI numeric display */
+.soip-metric-value {
+  font-family: var(--ds-font-accent);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* Native select — inline toolbar (matches admin ds-filter-select height) */
+[data-surface="dashboard"] .soip-inline-select {
+  display: inline-block;
+  height: 36px;
+  min-height: 36px;
+  margin: 0;
+  padding: 0 28px 0 12px;
+  background: var(--ds-surface-card)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none'%3E%3Cpath d='M6 9l6 6 6-6' stroke='%2360646c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+    no-repeat right 10px center;
+  color: var(--ds-ink);
+  font: 400 14px/1.4 var(--ds-font-sans);
+  border: 1px solid var(--ds-hairline-strong);
+  border-radius: var(--ds-radius-md);
+  outline: none;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  transition:
+    border-color var(--ds-motion-base) var(--ds-ease),
+    box-shadow var(--ds-motion-base) var(--ds-ease);
+}
+
+[data-surface="dashboard"] .soip-inline-select:hover {
+  border-color: color-mix(in srgb, var(--ds-ink) 24%, var(--ds-hairline-strong));
+}
+
+[data-surface="dashboard"] .soip-inline-select:focus {
+  border-color: var(--ds-input-focus-border);
+  box-shadow: 0 0 0 3px var(--ds-input-focus-ring);
+}
+
+[data-surface="dashboard"] .soip-filter--eid .soip-inline-select {
+  min-width: 10.5rem;
+  max-width: 14rem;
+}
+
+[data-surface="dashboard"] .soip-filter--territory .soip-inline-select {
+  min-width: 7rem;
+}
+
+[data-surface="dashboard"] .soip-filter--mode .soip-inline-select {
+  min-width: 6.5rem;
+}
+
+/* Context toolbar */
+[data-surface="dashboard"] .soip-context-toolbar {
+  margin-bottom: 20px;
+}
+
+[data-surface="dashboard"] .soip-page-header {
+  margin-bottom: 16px;
+}
+
+[data-surface="dashboard"] .soip-page-header .ds-display-sm {
+  font-size: 1.375rem;
+  line-height: 1.25;
+}
+
+/* Topbar status pill */
+[data-surface="dashboard"] .ds-topbar__actions .soip-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--ds-hairline-strong);
+  border-radius: var(--ds-radius-pill);
+  background: var(--ds-canvas-soft);
+  font: 400 13px/1 var(--ds-font-sans);
+  color: var(--ds-body);
+  white-space: nowrap;
+}
+
+[data-surface="dashboard"] .soip-status-pill__text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 12rem;
+}
+
+@media (min-width: 768px) {
+  [data-surface="dashboard"] .soip-status-pill__text {
+    max-width: none;
+  }
+}
+
+[data-surface="dashboard"] .soip-status-dot {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--ds-radius-pill);
+  background: var(--ds-success);
+}
+
+[data-surface="dashboard"] .soip-status-dot.is-inactive {
+  background: var(--ds-muted);
+}
+
+[data-surface="dashboard"] .soip-sidebar-info {
+  padding: 0 16px 16px;
+}
+
+[data-surface="dashboard"] .soip-sidebar-info__block + .soip-sidebar-info__block {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+[data-surface="dashboard"] .soip-sidebar-info__heading {
+  font: 600 11px/1.4 var(--ds-font-sans);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #b0b4ba;
+  margin-bottom: 8px;
+}
+
+[data-surface="dashboard"] .soip-sidebar-info__item {
+  font: 400 13px/1.4 var(--ds-font-sans);
+  color: rgba(255, 255, 255, 0.72);
+}
+
+[data-surface="dashboard"] .soip-sidebar-info__item.is-active {
+  color: #ffffff;
+}
+
+[data-surface="dashboard"] .soip-sidebar-info__item + .soip-sidebar-info__item {
+  margin-top: 4px;
+}
+
+/* Global metrics — responsive grid, no horizontal scroll */
+[data-surface="dashboard"] .soip-metrics-grid {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  gap: 12px;
+  margin-bottom: 20px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (min-width: 640px) {
+  [data-surface="dashboard"] .soip-metrics-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  [data-surface="dashboard"] .soip-metrics-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+/* Unified card borders across SOIP dashboard surfaces */
+[data-surface="dashboard"] .soip-metrics-grid__cell,
+[data-surface="dashboard"] .soip-widget-card.ds-feature-card.is-dashboard,
+[data-surface="dashboard"] .soip-context-toolbar.ds-admin-panel {
+  border: 1px solid var(--ds-hairline-strong);
+  border-radius: var(--ds-radius-lg);
+  background: var(--ds-surface-card);
+}
+
+[data-surface="dashboard"] .soip-widget-card.ds-feature-card.is-dashboard:hover {
+  border-color: var(--ds-hairline-strong);
+  box-shadow: var(--ds-shadow-soft);
+}
+
+[data-surface="dashboard"] .soip-metrics-grid__cell {
+  min-width: 0;
+  padding: 10px 12px;
+  box-shadow: none;
+}
+
+[data-surface="dashboard"] .soip-metrics-grid__cell.is-primary .ds-catalog-stat-box__value {
+  color: var(--ds-ink);
+}
+
+[data-surface="dashboard"] .soip-metrics-grid .ds-catalog-stat-box__label {
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  line-height: 1.35;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+[data-surface="dashboard"] .soip-metrics-grid .ds-catalog-stat-box__value {
+  margin-top: 4px;
+  font-size: 1.125rem;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-surface="dashboard"] .soip-metrics-grid__label-short {
+  display: none;
+}
+
+@media (max-width: 1279px) {
+  [data-surface="dashboard"] .soip-metrics-grid__label-full {
+    display: none;
+  }
+
+  [data-surface="dashboard"] .soip-metrics-grid__label-short {
+    display: inline;
+  }
+}
+
+@media (min-width: 1280px) {
+  [data-surface="dashboard"] .soip-metrics-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  [data-surface="dashboard"] .soip-metrics-grid .ds-catalog-stat-box__value {
+    font-size: 1.25rem;
+  }
+}
+
+/* Widget grid */
+[data-surface="dashboard"] .soip-widget-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+@media (min-width: 768px) {
+  [data-surface="dashboard"] .soip-widget-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1280px) {
+  [data-surface="dashboard"] .soip-widget-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1536px) {
+  [data-surface="dashboard"] .soip-widget-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+[data-surface="dashboard"] .soip-widget-card.is-expanded {
+  grid-column: span 2;
+}
+
+@media (max-width: 767px) {
+  [data-surface="dashboard"] .soip-widget-card.is-expanded {
+    grid-column: span 1;
+  }
+}
+
+[data-surface="dashboard"] .soip-widget-card__toggle {
+  display: flex;
+  width: 100%;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+}
+
+[data-surface="dashboard"] .soip-widget-card__body {
+  border-top: 1px solid var(--ds-hairline);
+  margin-top: 12px;
+  padding-top: 12px;
+}
+
+[data-surface="dashboard"] .soip-angel-panel {
+  margin-top: 12px;
+  background: var(--ds-canvas-soft);
+  border: 1px solid var(--ds-hairline-strong);
+  border-radius: var(--ds-radius-md);
+  overflow: hidden;
+}
+
+[data-surface="dashboard"] .soip-angel-panel__header {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--ds-hairline);
+}
+
+[data-surface="dashboard"] .soip-angel-panel__messages {
+  max-height: 9rem;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+[data-surface="dashboard"] .soip-angel-panel__composer {
+  display: flex;
+  gap: 8px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--ds-hairline);
+}
+
+/* Sidebar info blocks (non-nav contextual panels) — see rules above .soip-sidebar-info */
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 0ms !important;
+    animation-duration: 0ms !important;
+  }
+}

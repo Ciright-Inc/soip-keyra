@@ -1,0 +1,47 @@
+/**
+ * Design tokens — agent.md §0.2 (dashboard surface).
+ * SOIP uses the same token system as Keyra admin.
+ */
+:root {
+  --ds-canvas: #ffffff;
+  --ds-canvas-soft: #fafafa;
+  --ds-surface-card: #ffffff;
+  --ds-surface-strong: #f0f0f3;
+  --ds-surface-dark: #171717;
+
+  --ds-hairline: #f0f0f3;
+  --ds-hairline-soft: #f5f5f7;
+  --ds-hairline-strong: #dcdee0;
+
+  --ds-ink: #171717;
+  --ds-body: #60646c;
+  --ds-muted: #999999;
+  --ds-muted-soft: #cccccc;
+  --ds-on-primary: #ffffff;
+  --ds-on-dark: #ffffff;
+
+  --ds-primary: #000000;
+  --ds-primary-active: #1a1a1a;
+  --ds-text-link: #0d74ce;
+  --ds-text-link-2: #476cff;
+
+  --ds-success: #16a34a;
+  --ds-error: #dc2626;
+  --ds-warning: #ab6400;
+
+  --ds-radius-xs: 4px;
+  --ds-radius-sm: 6px;
+  --ds-radius-md: 8px;
+  --ds-radius-lg: 12px;
+  --ds-radius-xl: 16px;
+  --ds-radius-pill: 9999px;
+
+  --ds-shadow-soft: 0 4px 12px rgba(0, 0, 0, 0.04);
+
+  --ds-motion-fast: 150ms;
+  --ds-motion-base: 200ms;
+  --ds-motion-slow: 220ms;
+  --ds-ease: ease;
+
+  --color-on-dark-soft: #b0b4ba;
+}
