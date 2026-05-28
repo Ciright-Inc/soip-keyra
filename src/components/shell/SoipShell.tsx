@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { GlobalMetrics, OperationalMode } from "@/lib/types/soip";
 import { resolveAccessContext } from "@/lib/access/resolution";
-import { computeGlobalMetrics } from "@/lib/metrics/globalMetrics";
+import { computeGlobalMetrics, computeGlobalMetricsSnapshot } from "@/lib/metrics/globalMetrics";
 import { GlobalMetricsBar } from "@/components/metrics/GlobalMetricsBar";
 import { SoipContextToolbar } from "@/components/shell/SoipContextToolbar";
 import { SoipHeader } from "@/components/shell/SoipHeader";
@@ -31,13 +31,21 @@ export function SoipShell({ countries }: Props) {
   const [mode, setMode] = useState<OperationalMode>("SIMULATION");
   const [country, setCountry] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [metrics, setMetrics] = useState<GlobalMetrics>(() => computeGlobalMetrics("SIMULATION"));
+  const [metrics, setMetrics] = useState<GlobalMetrics>(() =>
+    computeGlobalMetricsSnapshot("SIMULATION"),
+  );
 
   const access = resolveAccessContext({ eidKey, mode });
 
   const handleModeChange = useCallback((next: OperationalMode) => {
     setMode(next);
     setMetrics(computeGlobalMetrics(next));
+  }, []);
+
+  // After hydration, replace deterministic snapshot with live jittered simulation.
+  useEffect(() => {
+    setMetrics(computeGlobalMetrics(mode));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {

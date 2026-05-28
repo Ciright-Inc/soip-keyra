@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, Montserrat } from "next/font/google";
 import "./globals.css";
-import { AuthProvider } from "@/lib/auth/AuthProvider";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -21,7 +20,7 @@ export const metadata: Metadata = {
   title: "SOIP — Sovereign Operational Intelligence Platform",
   description:
     "Keyra Global Trust Infrastructure. Sovereign operational intelligence for governments, enterprises, telecom operators, and trusted organizations.",
-  icons: { icon: "/favicon.svg" },
+  icons: { icon: "/favicon.png" },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -33,9 +32,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0"
         />
       </head>
-      <body className="min-h-full antialiased">
-        <AuthProvider>{children}</AuthProvider>
-      </body>
+      <body className="min-h-full antialiased">{children}</body>
     </html>
   );
 }
