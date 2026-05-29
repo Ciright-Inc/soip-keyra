@@ -13,7 +13,7 @@ type Props = {
 };
 
 export function SoipHeader({ access, sidebarOpen, onToggleSidebar, menuToggleIcon }: Props) {
-  const { headerLabel, isAuthenticated } = useKeyraSession();
+  const { headerLabel } = useKeyraSession();
 
   return (
     <header className="ds-topbar">
@@ -34,6 +34,12 @@ export function SoipHeader({ access, sidebarOpen, onToggleSidebar, menuToggleIco
         </div>
       </div>
 
+      {/*
+        Top-right actions — same placement as keyra admin (`AdminDashboardShell`
+        ds-topbar__actions). Always show Log out: middleware already gated this
+        page behind keyra_session, so the visitor is signed in even when the
+        client session probe is still loading on cross-domain hosts.
+      */}
       <div className="ds-topbar__actions">
         <div className="soip-status-pill">
           <span className={`soip-status-dot${access.verifiedHuman ? "" : " is-inactive"}`} />
@@ -41,16 +47,10 @@ export function SoipHeader({ access, sidebarOpen, onToggleSidebar, menuToggleIco
             UID verified · Team {access.teamId.slice(-8)}
           </span>
         </div>
-        {isAuthenticated ? (
-          <>
-            {headerLabel ? (
-              <span className="ds-body-sm" style={{ marginInlineEnd: "0.5rem" }}>
-                {headerLabel}
-              </span>
-            ) : null}
-            <AdminSignOutButton />
-          </>
+        {headerLabel ? (
+          <span className="ds-body-sm soip-topbar__user">{headerLabel}</span>
         ) : null}
+        <AdminSignOutButton />
       </div>
     </header>
   );
