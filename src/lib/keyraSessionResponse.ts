@@ -51,6 +51,16 @@ function hostnameFromOrigin(origin: string | undefined | null): string | undefin
   }
 }
 
+/**
+ * Non-httpOnly companion cookie set alongside the signed `keyra_session`.
+ * The client uses it as a short-lived "freshly minted" marker to suppress
+ * the cross-origin auth probe's `authenticated:false` response right after
+ * a phone-bridge sign-in (when `.keyra.ie` SimSecure cookies have not yet
+ * propagated to this browser tab on cross-domain hosts like Railway).
+ */
+const KEYRA_SESSION_FRESH_COOKIE = "keyra_session_fresh";
+const KEYRA_SESSION_FRESH_MAX_AGE = 30; // seconds
+
 function attachKeyraSessionCookie(
   res: NextResponse,
   token: string,
@@ -60,6 +70,18 @@ function attachKeyraSessionCookie(
     name: KEYRA_SESSION_COOKIE,
     value: token,
     ...keyraSessionCookieWriteOptions(KEYRA_SESSION_MAX_AGE, host ?? undefined),
+  });
+  // Companion freshness marker — readable by client JS so the session context
+  // can grace-period the cross-origin probe right after sign-in.
+  const sessionOpts = keyraSessionCookieWriteOptions(
+    KEYRA_SESSION_FRESH_MAX_AGE,
+    host ?? undefined,
+  );
+  res.cookies.set({
+    name: KEYRA_SESSION_FRESH_COOKIE,
+    value: "1",
+    ...sessionOpts,
+    httpOnly: false,
   });
 }
 
