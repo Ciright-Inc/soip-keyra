@@ -10,18 +10,33 @@ import {
 export { KEYRA_SESSION_COOKIE, KEYRA_SESSION_MAX_AGE, type KeyraSessionUser };
 
 /**
- * Shared across *.keyra.ie in production so SOIP and the Keyra marketing site
- * both see the same `keyra_session` cookie. Override with KEYRA_SESSION_COOKIE_DOMAIN.
+ * Pick the cookie `Domain` attribute for the given response host:
+ *  - explicit override via `KEYRA_SESSION_COOKIE_DOMAIN` always wins (use
+ *    `none` / `off` to force "no domain attribute").
+ *  - request host on `*.keyra.ie` (or `keyra.ie`) → `.keyra.ie` so cookies
+ *    flow across `app.keyra.ie`, `soip.keyra.ie`, etc.
+ *  - any other host (e.g. `*.up.railway.app`, `localhost`) → no domain
+ *    attribute so the browser scopes the cookie to the exact host. Setting
+ *    a `.keyra.ie` cookie from a non-Keyra host makes the browser reject it
+ *    silently, which manifests as "login works once but refresh signs me out".
  */
-export function keyraSessionCookieDomain(): string | undefined {
+export function keyraSessionCookieDomain(host?: string | null): string | undefined {
   const configured = process.env.KEYRA_SESSION_COOKIE_DOMAIN?.trim();
   if (configured === "none" || configured === "off") return undefined;
   if (configured) return configured;
-  if (process.env.NODE_ENV === "production") return ".keyra.ie";
+
+  const hostname = (host ?? "").split(":")[0]?.toLowerCase().trim();
+  if (hostname === "keyra.ie" || hostname.endsWith(".keyra.ie")) {
+    return ".keyra.ie";
+  }
+  // No env override and not on .keyra.ie — let the browser scope by host.
   return undefined;
 }
 
-export function keyraSessionCookieWriteOptions(maxAge: number): {
+export function keyraSessionCookieWriteOptions(
+  maxAge: number,
+  host?: string | null,
+): {
   httpOnly: true;
   secure: boolean;
   sameSite: "lax";
@@ -29,7 +44,7 @@ export function keyraSessionCookieWriteOptions(maxAge: number): {
   maxAge: number;
   domain?: string;
 } {
-  const domain = keyraSessionCookieDomain();
+  const domain = keyraSessionCookieDomain(host);
   return {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",

@@ -42,22 +42,36 @@ export function buildKeyraSessionUser(
   };
 }
 
-function attachKeyraSessionCookie(res: NextResponse, token: string): void {
+function hostnameFromOrigin(origin: string | undefined | null): string | undefined {
+  if (!origin) return undefined;
+  try {
+    return new URL(origin).hostname;
+  } catch {
+    return undefined;
+  }
+}
+
+function attachKeyraSessionCookie(
+  res: NextResponse,
+  token: string,
+  host?: string | null,
+): void {
   res.cookies.set({
     name: KEYRA_SESSION_COOKIE,
     value: token,
-    ...keyraSessionCookieWriteOptions(KEYRA_SESSION_MAX_AGE),
+    ...keyraSessionCookieWriteOptions(KEYRA_SESSION_MAX_AGE, host ?? undefined),
   });
 }
 
 export function jsonWithKeyraSession(
   user: KeyraSessionUser,
   body: Record<string, unknown> = { ok: true },
+  host?: string | null,
 ): NextResponse | null {
   const token = serializeSession(user);
   if (!token) return null;
   const res = NextResponse.json({ ...body, user });
-  attachKeyraSessionCookie(res, token);
+  attachKeyraSessionCookie(res, token, host);
   return res;
 }
 
@@ -70,6 +84,6 @@ export function redirectWithKeyraSession(
   if (!token) return null;
   const safeNext = nextPath.startsWith("/") ? nextPath : "/";
   const res = NextResponse.redirect(new URL(safeNext, origin));
-  attachKeyraSessionCookie(res, token);
+  attachKeyraSessionCookie(res, token, hostnameFromOrigin(origin));
   return res;
 }

@@ -116,11 +116,37 @@ async function syncKeyraSessionFromAuth(signal?: AbortSignal): Promise<KeyraSess
   }
 }
 
+/**
+ * Returns true when this page's host shares no parent domain with the auth
+ * backend (e.g. SOIP on `*.up.railway.app` while auth lives on `.keyra.ie`).
+ * In that case the same-origin `/api/auth/session` proxy can't see the
+ * `.keyra.ie` auth cookies, so its negative response is meaningless and must
+ * not be used to invalidate the local `keyra_session` cookie.
+ */
+function isCrossDomainFromAuthBackend(): boolean {
+  if (typeof window === "undefined") return false;
+  const backend =
+    typeof process !== "undefined"
+      ? process.env.NEXT_PUBLIC_SIMSECURE_AUTH_BACKEND_URL?.trim()
+      : "";
+  if (!backend) return false;
+  try {
+    const backendHost = new URL(backend).hostname.toLowerCase();
+    const currentHost = window.location.hostname.toLowerCase();
+    if (!backendHost || !currentHost) return false;
+    if (backendHost === currentHost) return false;
+    const tail = (h: string) => h.split(".").slice(-2).join(".");
+    return tail(backendHost) !== tail(currentHost);
+  } catch {
+    return false;
+  }
+}
+
 async function fetchAuthSessionPayload(signal?: AbortSignal): Promise<AuthSessionPayload | null> {
   // 1) Same-origin proxy. Works on `.keyra.ie` deployments because the browser
   //    forwards `.keyra.ie` auth cookies to the SOIP server, which then relays
   //    them to the auth backend.
-  let firstTry: AuthSessionPayload | null = null;
+  let proxyResult: AuthSessionPayload | null = null;
   try {
     const res = await fetch("/api/auth/session", {
       method: "GET",
@@ -130,8 +156,8 @@ async function fetchAuthSessionPayload(signal?: AbortSignal): Promise<AuthSessio
       signal,
     });
     if (res.ok) {
-      firstTry = (await res.json()) as AuthSessionPayload;
-      if (firstTry?.authenticated) return firstTry;
+      proxyResult = (await res.json()) as AuthSessionPayload;
+      if (proxyResult?.authenticated) return proxyResult;
     }
   } catch {
     // continue to fallback
@@ -140,7 +166,8 @@ async function fetchAuthSessionPayload(signal?: AbortSignal): Promise<AuthSessio
   // 2) Cross-origin fetch directly to the auth backend. On cross-parent-domain
   //    deployments (e.g. SOIP on `*.up.railway.app`) the browser will only
   //    expose `.keyra.ie` cookies on a fetch whose URL is on `.keyra.ie`, so
-  //    this is the only way to discover an existing Keyra session.
+  //    this is the only way to discover an existing Keyra session — and is
+  //    the only result we can trust when the proxy returns "unauthenticated".
   const authBackendUrl =
     typeof process !== "undefined" ? process.env.NEXT_PUBLIC_SIMSECURE_AUTH_BACKEND_URL : "";
   if (authBackendUrl?.trim()) {
@@ -154,16 +181,21 @@ async function fetchAuthSessionPayload(signal?: AbortSignal): Promise<AuthSessio
         signal,
       });
       if (res2.ok) {
-        const payload = (await res2.json()) as AuthSessionPayload;
-        if (payload?.authenticated) return payload;
-        firstTry = firstTry ?? payload;
+        // Trust the cross-origin response in either direction — it's the only
+        // place the browser exposes the real auth cookies.
+        return (await res2.json()) as AuthSessionPayload;
       }
     } catch {
-      // ignore — likely CORS/network; fall back to whatever the proxy said.
+      // ignore — CORS/network; we'll decide based on the proxy result below.
     }
   }
 
-  return firstTry;
+  // Cross-origin probe was unavailable. On cross-domain deployments the proxy
+  // result was made without the auth cookies, so a negative is meaningless.
+  // Returning `null` tells the caller "couldn't determine, keep current state".
+  if (isCrossDomainFromAuthBackend()) return null;
+
+  return proxyResult;
 }
 
 function userFromAuthPayload(payload: AuthSessionPayload): KeyraSessionUser | null {
@@ -203,13 +235,21 @@ async function fetchSessionUser(signal?: AbortSignal): Promise<KeyraSessionUser 
     fetchAuthSessionPayload(signal),
   ]);
 
-  if (payload?.authenticated === false) {
+  // Definitive signed-out signal (the trusted probe explicitly said so).
+  // Cross-domain deployments will get `payload === null` (inconclusive) when
+  // the cross-origin probe is blocked, so we only clear local state on a
+  // confirmed `authenticated === false` from a probe we can trust.
+  if (payload && payload.authenticated === false) {
     await Promise.all([clearSimsecureAuthSession(), clearKeyraCookieSession()]);
     return null;
   }
 
   const authUser =
     payload?.authenticated && payload?.user?.phone ? userFromAuthPayload(payload) : null;
+
+  // Probe inconclusive (e.g. cross-domain on Railway with CORS blocked) —
+  // trust the locally-signed `keyra_session` cookie if present.
+  if (!payload && cookieUser) return cookieUser;
 
   if (cookieUser && authUser && cookieUser.phoneE164 !== authUser.phoneE164) {
     const synced = await syncKeyraSessionFromAuth(signal);

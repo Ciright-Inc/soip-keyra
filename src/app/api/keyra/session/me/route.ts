@@ -1,4 +1,4 @@
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import {
   KEYRA_SESSION_COOKIE,
   keyraSessionCookieWriteOptions,
@@ -15,11 +15,16 @@ export async function GET() {
   }
   const user = parseSession(raw);
   if (!user) {
+    const hdrs = await headers();
+    const host =
+      hdrs.get("x-forwarded-host")?.split(",")[0]?.trim() ||
+      hdrs.get("host")?.split(",")[0]?.trim() ||
+      undefined;
     const res = NextResponse.json({ user: null as KeyraSessionUser | null });
     res.cookies.set({
       name: KEYRA_SESSION_COOKIE,
       value: "",
-      ...keyraSessionCookieWriteOptions(0),
+      ...keyraSessionCookieWriteOptions(0, host),
     });
     return res;
   }

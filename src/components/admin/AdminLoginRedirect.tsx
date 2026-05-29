@@ -61,7 +61,7 @@ export function clearAutoBridgeAttempted(): void {
  *    the user has a Keyra session but not an active AdminUser row).
  */
 export function AdminLoginRedirect({ nextPath, disabled = false }: Props) {
-  const { isAuthenticated, initialized, refresh } = useKeyraSession();
+  const { isAuthenticated, initialized, refresh, user } = useKeyraSession();
   const redirectingRef = useRef(false);
   // True until we have decided whether to redirect (auth → nextPath / bridge
   // → Get Started) OR show the login gate. Hides the login UI during the
@@ -69,7 +69,14 @@ export function AdminLoginRedirect({ nextPath, disabled = false }: Props) {
   // another Keyra site never flash the SOIP gate.
   const [coverVisible, setCoverVisible] = useState(!disabled);
 
-  // 1) Authenticated → redirect to nextPath (existing behaviour).
+  // 1) Authenticated → either:
+  //    - if SOIP already minted a `keyra_session` cookie this session, just
+  //      navigate to `nextPath` (the middleware will let it through), or
+  //    - if we only know the phone via a cross-origin probe (Railway preview
+  //      or any cross-parent-domain host), bounce through
+  //      `/api/keyra/session/continue?phone=…&next=…` so the SOIP server can
+  //      mint the cookie before we land on `nextPath`. Without this, the
+  //      middleware would see no cookie and redirect right back to the gate.
   useEffect(() => {
     if (disabled) return;
     if (!initialized) return;
@@ -81,8 +88,29 @@ export function AdminLoginRedirect({ nextPath, disabled = false }: Props) {
     clearAutoBridgeAttempted();
     const safeNext =
       nextPath.startsWith("/") && !nextPath.startsWith("//") ? nextPath : "/";
+
+    const hasCookie =
+      typeof document !== "undefined" &&
+      document.cookie.split(";").some((c) => c.trim().startsWith("keyra_session="));
+
+    if (hasCookie) {
+      window.location.replace(safeNext);
+      return;
+    }
+
+    const phone = user?.phoneE164?.trim();
+    if (phone?.startsWith("+")) {
+      const url = `/api/keyra/session/continue?next=${encodeURIComponent(
+        safeNext,
+      )}&phone=${encodeURIComponent(phone)}`;
+      window.location.replace(url);
+      return;
+    }
+
+    // No cookie and no phone we can use — fall back to the regular redirect;
+    // the middleware will re-gate if the cookie is still missing on arrival.
     window.location.replace(safeNext);
-  }, [disabled, initialized, isAuthenticated, nextPath]);
+  }, [disabled, initialized, isAuthenticated, nextPath, user?.phoneE164]);
 
   // 2) Not authenticated AND we have not yet bounced through Get Started this
   //    tab → silently bridge so visitors who are already logged in on another
@@ -115,6 +143,21 @@ export function AdminLoginRedirect({ nextPath, disabled = false }: Props) {
   useEffect(() => {
     if (disabled) setCoverVisible(false);
   }, [disabled]);
+
+  // Sync the SSR cover (rendered by the page server-side to avoid a flash of
+  // the gate UI on first paint) with the client-side cover state. Once we
+  // decide to reveal the gate, remove the SSR cover too so it's not stacked
+  // beneath ours forever.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const ssrCover = document.getElementById("soip-auth-cover");
+    if (!ssrCover) return;
+    if (coverVisible) {
+      ssrCover.style.display = "none"; // our React cover is now on top
+    } else {
+      ssrCover.parentNode?.removeChild(ssrCover);
+    }
+  }, [coverVisible]);
 
   useEffect(() => {
     if (disabled) return undefined;

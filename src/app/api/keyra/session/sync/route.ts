@@ -17,7 +17,11 @@ export async function POST(req: Request) {
   }
 
   const user = buildKeyraSessionUser(auth.phoneE164, auth);
-  const res = jsonWithKeyraSession(user, { ok: true, synced: true });
+  const host =
+    req.headers.get("x-forwarded-host")?.split(",")[0]?.trim() ||
+    req.headers.get("host")?.split(",")[0]?.trim() ||
+    null;
+  const res = jsonWithKeyraSession(user, { ok: true, synced: true }, host);
   if (!res) {
     return NextResponse.json(
       {
