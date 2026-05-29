@@ -19,8 +19,11 @@ export function AdminSignOutButton({ className = "ds-btn-secondary is-sm" }: Pro
     setSigningOut(true);
     try {
       await logout();
-      const next = pathname.startsWith("/admin") ? pathname : "/admin";
-      const params = new URLSearchParams({ reason: "sign_in", next });
+      // Preserve the page the user logged out from so they return there after
+      // re-authenticating. Same-origin paths only.
+      const safeNext =
+        pathname.startsWith("/") && !pathname.startsWith("//") ? pathname : "/";
+      const params = new URLSearchParams({ reason: "sign_in", next: safeNext });
       window.location.assign(`/admin/login?${params.toString()}`);
     } catch {
       setSigningOut(false);

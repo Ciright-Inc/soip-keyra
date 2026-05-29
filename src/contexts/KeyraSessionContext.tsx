@@ -16,6 +16,8 @@ import {
 const AUTH_CHANNEL = "keyra-auth";
 const AUTH_STORAGE_KEY = "keyra-auth-logout";
 const AUTH_LOGIN_STORAGE_KEY = "keyra-auth-login";
+/** sessionStorage key set by AdminLoginRedirect when it bridges through Get Started. */
+const BRIDGE_FLAG = "soip:bridge-attempted";
 /**
  * Session refresh should be resilient to variable network latency (especially when
  * /api/auth/session proxies to the external auth backend). A too-short timeout causes
@@ -115,6 +117,10 @@ async function syncKeyraSessionFromAuth(signal?: AbortSignal): Promise<KeyraSess
 }
 
 async function fetchAuthSessionPayload(signal?: AbortSignal): Promise<AuthSessionPayload | null> {
+  // 1) Same-origin proxy. Works on `.keyra.ie` deployments because the browser
+  //    forwards `.keyra.ie` auth cookies to the SOIP server, which then relays
+  //    them to the auth backend.
+  let firstTry: AuthSessionPayload | null = null;
   try {
     const res = await fetch("/api/auth/session", {
       method: "GET",
@@ -124,32 +130,40 @@ async function fetchAuthSessionPayload(signal?: AbortSignal): Promise<AuthSessio
       signal,
     });
     if (res.ok) {
-      return (await res.json()) as AuthSessionPayload;
+      firstTry = (await res.json()) as AuthSessionPayload;
+      if (firstTry?.authenticated) return firstTry;
     }
   } catch {
     // continue to fallback
   }
 
+  // 2) Cross-origin fetch directly to the auth backend. On cross-parent-domain
+  //    deployments (e.g. SOIP on `*.up.railway.app`) the browser will only
+  //    expose `.keyra.ie` cookies on a fetch whose URL is on `.keyra.ie`, so
+  //    this is the only way to discover an existing Keyra session.
   const authBackendUrl =
     typeof process !== "undefined" ? process.env.NEXT_PUBLIC_SIMSECURE_AUTH_BACKEND_URL : "";
-  if (!authBackendUrl?.trim()) return null;
-
-  try {
-    const base = authBackendUrl.replace(/\/+$/, "");
-    const res2 = await fetch(`${base}/auth/session`, {
-      method: "GET",
-      credentials: "include",
-      cache: "no-store",
-      headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
-      signal,
-    });
-    if (res2.ok) {
-      return (await res2.json()) as AuthSessionPayload;
+  if (authBackendUrl?.trim()) {
+    try {
+      const base = authBackendUrl.replace(/\/+$/, "");
+      const res2 = await fetch(`${base}/auth/session`, {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store",
+        headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+        signal,
+      });
+      if (res2.ok) {
+        const payload = (await res2.json()) as AuthSessionPayload;
+        if (payload?.authenticated) return payload;
+        firstTry = firstTry ?? payload;
+      }
+    } catch {
+      // ignore — likely CORS/network; fall back to whatever the proxy said.
     }
-  } catch {
-    // ignore
   }
-  return null;
+
+  return firstTry;
 }
 
 function userFromAuthPayload(payload: AuthSessionPayload): KeyraSessionUser | null {
@@ -374,6 +388,13 @@ export function KeyraSessionProvider({
   const logout = useCallback(async () => {
     await Promise.all([clearSimsecureAuthSession(), clearKeyraCookieSession()]);
     setUserState(null);
+    // Reset the per-tab "we already bridged through Get Started" marker so
+    // the next visit auto-bridges again instead of going straight to the gate.
+    try {
+      window.sessionStorage.removeItem(BRIDGE_FLAG);
+    } catch {
+      // ignore
+    }
     try {
       new BroadcastChannel(AUTH_CHANNEL).postMessage({ type: "logout" });
     } catch {

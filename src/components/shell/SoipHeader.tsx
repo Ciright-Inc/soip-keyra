@@ -2,6 +2,8 @@
 
 import type { ReactNode } from "react";
 import type { AccessContext } from "@/lib/types/soip";
+import { AdminSignOutButton } from "@/components/admin/AdminSignOutButton";
+import { useKeyraSession } from "@/contexts/KeyraSessionContext";
 
 type Props = {
   access: AccessContext;
@@ -11,6 +13,8 @@ type Props = {
 };
 
 export function SoipHeader({ access, sidebarOpen, onToggleSidebar, menuToggleIcon }: Props) {
+  const { headerLabel, isAuthenticated } = useKeyraSession();
+
   return (
     <header className="ds-topbar">
       <div className="ds-topbar__lead">
@@ -37,6 +41,16 @@ export function SoipHeader({ access, sidebarOpen, onToggleSidebar, menuToggleIco
             UID verified · Team {access.teamId.slice(-8)}
           </span>
         </div>
+        {isAuthenticated ? (
+          <>
+            {headerLabel ? (
+              <span className="ds-body-sm" style={{ marginInlineEnd: "0.5rem" }}>
+                {headerLabel}
+              </span>
+            ) : null}
+            <AdminSignOutButton />
+          </>
+        ) : null}
       </div>
     </header>
   );

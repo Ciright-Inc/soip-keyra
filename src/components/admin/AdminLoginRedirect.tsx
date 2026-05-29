@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useKeyraSession } from "@/contexts/KeyraSessionContext";
+import { buildAdminGetStartedAccessUrl } from "@/lib/keyraAppUrls";
 
 type Props = {
   /** Path to navigate to once a Keyra session is detected. Any same-origin path is allowed. */
@@ -9,6 +10,41 @@ type Props = {
   /** When true, do not auto-redirect (used when ?force=1 is set on the gate). */
   disabled?: boolean;
 };
+
+/**
+ * Per-tab marker that we've already attempted to bridge through
+ * `get-started.keyra.ie`. Prevents an infinite redirect loop when the visitor
+ * is not logged in anywhere — after the first bounce they see the SOIP login
+ * gate instead of going round again. Cleared on logout via `clearAutoBridgeAttempted`.
+ */
+const BRIDGE_FLAG = "soip:bridge-attempted";
+
+function hasAttemptedAutoBridge(): boolean {
+  if (typeof window === "undefined") return true;
+  try {
+    return window.sessionStorage.getItem(BRIDGE_FLAG) === "1";
+  } catch {
+    return true;
+  }
+}
+
+function markAutoBridgeAttempted(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(BRIDGE_FLAG, "1");
+  } catch {
+    // ignore — private mode / storage disabled
+  }
+}
+
+export function clearAutoBridgeAttempted(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.removeItem(BRIDGE_FLAG);
+  } catch {
+    // ignore
+  }
+}
 
 /**
  * Client-side counterpart to AdminAuthWatcher for the *anonymous* admin login
@@ -27,7 +63,13 @@ type Props = {
 export function AdminLoginRedirect({ nextPath, disabled = false }: Props) {
   const { isAuthenticated, initialized, refresh } = useKeyraSession();
   const redirectingRef = useRef(false);
+  // True until we have decided whether to redirect (auth → nextPath / bridge
+  // → Get Started) OR show the login gate. Hides the login UI during the
+  // initial cross-domain auth check so visitors who are already signed in on
+  // another Keyra site never flash the SOIP gate.
+  const [coverVisible, setCoverVisible] = useState(!disabled);
 
+  // 1) Authenticated → redirect to nextPath (existing behaviour).
   useEffect(() => {
     if (disabled) return;
     if (!initialized) return;
@@ -36,11 +78,43 @@ export function AdminLoginRedirect({ nextPath, disabled = false }: Props) {
     if (typeof window === "undefined") return;
 
     redirectingRef.current = true;
-    // Same-origin path: must start with `/` and not `//` (protocol-relative).
+    clearAutoBridgeAttempted();
     const safeNext =
       nextPath.startsWith("/") && !nextPath.startsWith("//") ? nextPath : "/";
     window.location.replace(safeNext);
   }, [disabled, initialized, isAuthenticated, nextPath]);
+
+  // 2) Not authenticated AND we have not yet bounced through Get Started this
+  //    tab → silently bridge so visitors who are already logged in on another
+  //    Keyra site land on `nextPath` without ever seeing the SOIP login gate.
+  //    Get Started auto-redirects back here with `?phone=` (when its session
+  //    is active) so SOIP can mint a `keyra_session` cookie immediately.
+  //    If the visitor has already bounced once (sessionStorage flag set), we
+  //    drop the cover and reveal the gate so they can act manually.
+  useEffect(() => {
+    if (disabled) return;
+    if (!initialized) return;
+    if (isAuthenticated) return;
+    if (redirectingRef.current) return;
+    if (typeof window === "undefined") return;
+
+    if (hasAttemptedAutoBridge()) {
+      setCoverVisible(false);
+      return;
+    }
+
+    redirectingRef.current = true;
+    markAutoBridgeAttempted();
+    const safeNext =
+      nextPath.startsWith("/") && !nextPath.startsWith("//") ? nextPath : "/";
+    const bridge = buildAdminGetStartedAccessUrl(safeNext);
+    window.location.replace(bridge);
+  }, [disabled, initialized, isAuthenticated, nextPath]);
+
+  // Drop the cover when ?force=1 is set so the gate is visible immediately.
+  useEffect(() => {
+    if (disabled) setCoverVisible(false);
+  }, [disabled]);
 
   useEffect(() => {
     if (disabled) return undefined;
@@ -114,5 +188,21 @@ export function AdminLoginRedirect({ nextPath, disabled = false }: Props) {
     return () => window.removeEventListener("storage", onStorage);
   }, [disabled, refresh]);
 
+  // Opaque cover hides the underlying gate UI while we run the cross-domain
+  // auth check / silently bridge to Get Started. Removed once the gate must
+  // actually be shown (visitor not logged in anywhere and bridge already used).
+  if (coverVisible) {
+    return (
+      <div
+        aria-hidden
+        style={{
+          position: "fixed",
+          inset: 0,
+          background: "var(--ds-canvas-soft, #fff)",
+          zIndex: 9999,
+        }}
+      />
+    );
+  }
   return null;
 }
