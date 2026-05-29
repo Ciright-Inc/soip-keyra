@@ -238,50 +238,28 @@ function mergeKeyraSessionUsers(
   };
 }
 
-/**
- * Non-httpOnly companion cookie that the SOIP server sets for ~30s when it
- * mints a `keyra_session`. While it's present, the client trusts the local
- * cookie and ignores `authenticated:false` from the cross-origin auth probe,
- * giving SimSecure cookies time to settle right after a phone-bridge sign-in.
- * After it expires the cross-origin probe becomes authoritative again so
- * logout on any other Keyra site propagates instantly.
- */
-const KEYRA_SESSION_FRESH_COOKIE = "keyra_session_fresh";
-
-function isSessionWithinGraceWindow(): boolean {
-  if (typeof document === "undefined") return false;
-  return document.cookie
-    .split(";")
-    .some((c) => c.trim().startsWith(`${KEYRA_SESSION_FRESH_COOKIE}=`));
-}
-
-function clearSessionFresh(): void {
-  if (typeof document === "undefined") return;
-  document.cookie = `${KEYRA_SESSION_FRESH_COOKIE}=; Max-Age=0; Path=/`;
-}
-
 async function fetchSessionUser(signal?: AbortSignal): Promise<KeyraSessionUser | null> {
   const [cookieUser, payload] = await Promise.all([
     fetchKeyraCookieUser(signal),
     fetchAuthSessionPayload(signal),
   ]);
 
-  // Signed-out signal from the auth backend. We trust this authoritatively so
-  // logout on any other Keyra site (.keyra.ie, get-started, etc.) propagates
-  // to SOIP within the next poll. The cross-origin probe is the only signal
-  // that crosses parent domains on Railway, so we must honour it — same as
-  // keyra admin honours the SimSecure backend response.
+  // Auth backend says "not authenticated".
   //
-  // Exception: within `SESSION_FRESH_WINDOW_MS` of a freshly-minted local
-  // cookie (phone bridge / fresh login), keep the session even if the probe
-  // says "false". This avoids a flash logout right after sign-in when the
-  // browser hasn't propagated the SimSecure cookies yet, while still allowing
-  // sign-out elsewhere to take effect a few seconds later.
+  // Same-domain (e.g. `app.keyra.ie` ↔ `auth.keyra.ie`): the proxy can read
+  // the user's SimSecure cookies, so this answer is authoritative — clear
+  // the local session so logout from another Keyra tab is honoured.
+  //
+  // Cross-domain (e.g. SOIP on `*.up.railway.app`): browsers partition
+  // third-party cookies, so the probe sees no cookies and lies "false" even
+  // when the user is still signed in elsewhere. Treat this as inconclusive
+  // and keep the locally-signed `keyra_session` cookie. Matches keyra
+  // server's `keyraSessionServer.ts` behaviour. SOIP-initiated logout still
+  // runs normally because the user explicitly clicked Log out.
   if (payload && payload.authenticated === false) {
-    if (cookieUser && isSessionWithinGraceWindow()) {
+    if (isCrossDomainFromAuthBackend() && cookieUser) {
       return cookieUser;
     }
-    clearSessionFresh();
     await Promise.all([clearSimsecureAuthSession(), clearKeyraCookieSession()]);
     return null;
   }
@@ -472,7 +450,6 @@ export function KeyraSessionProvider({
   }, [fetchSession]);
 
   const logout = useCallback(async () => {
-    clearSessionFresh();
     await Promise.all([clearSimsecureAuthSession(), clearKeyraCookieSession()]);
     setUserState(null);
     // Reset the per-tab "we already bridged through Get Started" marker so
