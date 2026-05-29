@@ -238,17 +238,33 @@ function mergeKeyraSessionUsers(
   };
 }
 
-async function fetchSessionUser(signal?: AbortSignal): Promise<KeyraSessionUser | null> {
+async function fetchSessionUser(
+  signal?: AbortSignal,
+  /** Set when this tab has seen an active SimSecure session via cross-origin probe. */
+  simsecureAuthSeenRef?: { current: boolean },
+): Promise<KeyraSessionUser | null> {
   const [cookieUser, payload] = await Promise.all([
     fetchKeyraCookieUser(signal),
     fetchAuthSessionPayload(signal),
   ]);
 
-  // Definitive signed-out signal (the trusted probe explicitly said so).
-  // Cross-domain deployments will get `payload === null` (inconclusive) when
-  // the cross-origin probe is blocked, so we only clear local state on a
-  // confirmed `authenticated === false` from a probe we can trust.
+  if (payload?.authenticated && payload?.user?.phone) {
+    if (simsecureAuthSeenRef) simsecureAuthSeenRef.current = true;
+  }
+
+  // Signed-out signal from the auth backend.
   if (payload && payload.authenticated === false) {
+    const crossDomain = isCrossDomainFromAuthBackend();
+    // Match keyra server (`keyraSessionServer`): on cross-domain hosts (Railway)
+    // keep the signed `keyra_session` when SimSecure is not visible in this
+    // browser — e.g. phone bridge right after login, or third-party cookie
+    // restrictions. Only revoke the local cookie once we previously confirmed
+    // SimSecure was active in this tab (so logout on another Keyra site is
+    // still detected).
+    if (crossDomain && cookieUser && simsecureAuthSeenRef && !simsecureAuthSeenRef.current) {
+      return cookieUser;
+    }
+    if (simsecureAuthSeenRef) simsecureAuthSeenRef.current = false;
     await Promise.all([clearSimsecureAuthSession(), clearKeyraCookieSession()]);
     return null;
   }
@@ -312,6 +328,8 @@ export function KeyraSessionProvider({
   const [user, setUserState] = useState<KeyraSessionUser | null>(initialUser);
   const [initialized, setInitialized] = useState(false);
   const fetchingRef = useRef(false);
+  /** True after cross-origin SimSecure `/auth/session` returned authenticated in this tab. */
+  const simsecureAuthSeenRef = useRef(false);
 
   const fetchSession = useCallback(async () => {
     if (fetchingRef.current) return;
@@ -319,7 +337,7 @@ export function KeyraSessionProvider({
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), SESSION_TIMEOUT_MS);
     try {
-      const next = await fetchSessionUser(controller.signal);
+      const next = await fetchSessionUser(controller.signal, simsecureAuthSeenRef);
       setUserState((prev) => {
         if (next === null) return null;
         if (
@@ -439,6 +457,7 @@ export function KeyraSessionProvider({
   }, [fetchSession]);
 
   const logout = useCallback(async () => {
+    simsecureAuthSeenRef.current = false;
     await Promise.all([clearSimsecureAuthSession(), clearKeyraCookieSession()]);
     setUserState(null);
     // Reset the per-tab "we already bridged through Get Started" marker so
