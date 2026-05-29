@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import { Inter, Montserrat } from "next/font/google";
 import "./globals.css";
+import { KeyraSessionProvider } from "@/contexts/KeyraSessionContext";
+import { resolveKeyraSessionFromCookies } from "@/lib/keyraSessionServer";
+import type { KeyraSessionUser } from "@/lib/keyraSessionTypes";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -23,7 +26,16 @@ export const metadata: Metadata = {
   icons: { icon: "/favicon.png" },
 };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default async function RootLayout({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
+  let initialUser: KeyraSessionUser | null = null;
+  try {
+    initialUser = await resolveKeyraSessionFromCookies();
+  } catch {
+    initialUser = null;
+  }
+
   return (
     <html lang="en-IE" className={`${inter.variable} ${montserrat.variable} h-full`}>
       <head>
@@ -32,7 +44,9 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0"
         />
       </head>
-      <body className="min-h-full antialiased">{children}</body>
+      <body className="min-h-full antialiased">
+        <KeyraSessionProvider initialUser={initialUser}>{children}</KeyraSessionProvider>
+      </body>
     </html>
   );
 }

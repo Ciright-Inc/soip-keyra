@@ -8,7 +8,47 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  schemas  = ["keyra_soip"]
+  // SOIP owns `keyra_soip` for its own data, but reads the canonical `AdminUser`
+  // table from the keyra app's `public` schema so admin login is unified.
+  schemas  = ["keyra_soip", "public"]
+}
+
+// ─── Shared admin identity (read from keyra `public` schema) ─────────────────
+
+/**
+ * Mirror of the canonical Keyra admin role enum (keyra/prisma/schema.prisma).
+ * Stored in the `public` Postgres schema so SOIP and Keyra share identical values.
+ */
+enum DeploymentAdminRole {
+  GLOBAL_ADMIN
+  REGIONAL_ADMIN
+  COUNTRY_ADMIN
+  TELCO_ADMIN
+  COMPLIANCE_REVIEWER
+  READ_ONLY
+
+  @@schema("public")
+}
+
+/**
+ * Same row as Keyra's AdminUser. SOIP does not own this table; it only reads
+ * from it. Migrations / writes happen on the Keyra app side. Keep the model
+ * shape in sync with keyra/prisma/schema.prisma#AdminUser.
+ */
+model AdminUser {
+  id           String              @id @default(cuid())
+  email        String              @unique
+  displayName  String?
+  phoneE164    String?             @unique
+  passwordHash String
+  role         DeploymentAdminRole
+  /// JSON: { "regionIds"?: string[], "countryIds"?: string[], "telcoIds"?: string[] }
+  scopeJson    Json?
+  isActive     Boolean             @default(true)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  @@schema("public")
 }
 
 // ─── Enums ───────────────────────────────────────────────────────────────────
