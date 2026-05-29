@@ -231,6 +231,20 @@ export function AdminLoginRedirect({ nextPath, disabled = false }: Props) {
     return () => window.removeEventListener("storage", onStorage);
   }, [disabled, refresh]);
 
+  // bfcache guard: when the user clicks the browser Back button while signed
+  // in, the browser may restore /admin/login from the back-forward cache
+  // without re-running the server's "redirect if authenticated" check. Force
+  // a full reload on that restore so the server (which sees the cookie) sends
+  // them straight to nextPath instead of letting them sit on the login page.
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) window.location.reload();
+    };
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, []);
+
   // Opaque cover hides the underlying gate UI while we run the cross-domain
   // auth check / silently bridge to Get Started. Removed once the gate must
   // actually be shown (visitor not logged in anywhere and bridge already used).

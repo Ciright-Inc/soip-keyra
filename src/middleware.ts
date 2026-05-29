@@ -31,8 +31,20 @@ function isPublicPath(pathname: string): boolean {
   return false;
 }
 
+function withNoStore(res: NextResponse): NextResponse {
+  // Disables bfcache on the login page so the browser Back button can never
+  // restore a stale "Sign in" screen for an already-authenticated visitor.
+  res.headers.set("Cache-Control", "no-store, no-cache, must-revalidate");
+  res.headers.set("Pragma", "no-cache");
+  return res;
+}
+
 export function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
+
+  if (pathname === "/admin/login" || pathname === "/auth/continue") {
+    return withNoStore(NextResponse.next());
+  }
 
   if (isPublicPath(pathname)) return NextResponse.next();
 
