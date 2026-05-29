@@ -12,7 +12,10 @@ type Search = { next?: string; reason?: string; force?: string };
 export const dynamic = "force-dynamic";
 
 function safeNext(raw: string | undefined): string {
-  return raw?.startsWith("/admin") ? raw : "/admin";
+  if (!raw) return "/";
+  // Same-origin paths only: must start with `/` and not `//` (protocol-relative).
+  if (raw.startsWith("/") && !raw.startsWith("//")) return raw;
+  return "/";
 }
 
 function showLoginDespiteSession(sp: Search): boolean {

@@ -113,9 +113,17 @@ export function AdminAccessGate({
                 Login on Keyra
               </a>
             ) : null}
-            <Link href="/" className="ds-btn-secondary">
-              Back to SOIP home
-            </Link>
+            {/*
+              "Back to SOIP home" only makes sense when the visitor already has
+              a keyra_session cookie — i.e. no_access (logged in but missing
+              admin rights) or alreadyAuthorized. In the sign_in case the
+              middleware would just bounce them back to this gate.
+            */}
+            {isNoAccess || alreadyAuthorized ? (
+              <Link href="/" className="ds-btn-secondary">
+                Back to SOIP home
+              </Link>
+            ) : null}
           </div>
         </div>
       </div>

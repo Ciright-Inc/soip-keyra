@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { useKeyraSession } from "@/contexts/KeyraSessionContext";
 
 type Props = {
-  /** Path to navigate to once a Keyra session is detected. Must start with `/admin`. */
+  /** Path to navigate to once a Keyra session is detected. Any same-origin path is allowed. */
   nextPath: string;
   /** When true, do not auto-redirect (used when ?force=1 is set on the gate). */
   disabled?: boolean;
@@ -36,7 +36,9 @@ export function AdminLoginRedirect({ nextPath, disabled = false }: Props) {
     if (typeof window === "undefined") return;
 
     redirectingRef.current = true;
-    const safeNext = nextPath.startsWith("/admin") ? nextPath : "/admin/dashboard";
+    // Same-origin path: must start with `/` and not `//` (protocol-relative).
+    const safeNext =
+      nextPath.startsWith("/") && !nextPath.startsWith("//") ? nextPath : "/";
     window.location.replace(safeNext);
   }, [disabled, initialized, isAuthenticated, nextPath]);
 

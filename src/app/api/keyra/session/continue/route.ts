@@ -35,12 +35,11 @@ export async function GET(req: Request) {
     }
   }
 
-  if (nextPath.startsWith("/admin")) {
-    const login = new URL("/admin/login", origin);
-    login.searchParams.set("next", nextPath);
-    login.searchParams.set("reason", "sign_in");
-    return NextResponse.redirect(login);
-  }
-
-  return NextResponse.redirect(new URL(nextPath || "/", origin));
+  // No session could be established. Send the visitor to the admin login
+  // gate so they can authenticate via the Keyra ecosystem before reaching
+  // any SOIP page.
+  const login = new URL("/admin/login", origin);
+  login.searchParams.set("next", nextPath || "/");
+  login.searchParams.set("reason", "sign_in");
+  return NextResponse.redirect(login);
 }
