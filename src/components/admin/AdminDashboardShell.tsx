@@ -4,7 +4,6 @@ import "@/styles/admin-dashboard.css";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { AdminAuthWatcher } from "@/components/admin/AdminAuthWatcher";
 import { AdminSignOutButton } from "@/components/admin/AdminSignOutButton";
 import { useKeyraSession } from "@/contexts/KeyraSessionContext";
 import { lockDocumentScroll } from "@/lib/documentScrollLock";
@@ -82,7 +81,6 @@ export function AdminDashboardShell({ children }: { children: ReactNode }) {
 
   return (
     <>
-      <AdminAuthWatcher />
       <div
         data-surface="dashboard"
         className={`admin-dashboard${sidebarOpen ? " is-sidebar-open" : ""}`}

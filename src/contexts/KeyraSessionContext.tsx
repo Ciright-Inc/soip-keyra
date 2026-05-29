@@ -142,10 +142,41 @@ function isCrossDomainFromAuthBackend(): boolean {
   }
 }
 
+async function fetchCrossOriginAuthSession(
+  signal?: AbortSignal,
+): Promise<AuthSessionPayload | null> {
+  const authBackendUrl =
+    typeof process !== "undefined" ? process.env.NEXT_PUBLIC_SIMSECURE_AUTH_BACKEND_URL : "";
+  if (!authBackendUrl?.trim()) return null;
+
+  try {
+    const base = authBackendUrl.replace(/\/+$/, "");
+    const res = await fetch(`${base}/auth/session`, {
+      method: "GET",
+      credentials: "include",
+      cache: "no-store",
+      headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+      signal,
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as AuthSessionPayload;
+  } catch {
+    return null;
+  }
+}
+
 async function fetchAuthSessionPayload(signal?: AbortSignal): Promise<AuthSessionPayload | null> {
-  // 1) Same-origin proxy. Works on `.keyra.ie` deployments because the browser
-  //    forwards `.keyra.ie` auth cookies to the SOIP server, which then relays
-  //    them to the auth backend.
+  const crossDomain = isCrossDomainFromAuthBackend();
+
+  // On Railway / other cross-parent hosts, probe the auth backend first — the
+  // browser attaches `.keyra.ie` SimSecure cookies only on that origin. This is
+  // how we detect login AND logout on other Keyra sites without a hard refresh.
+  if (crossDomain) {
+    const crossOrigin = await fetchCrossOriginAuthSession(signal);
+    if (crossOrigin) return crossOrigin;
+  }
+
+  // Same-origin proxy (works on `*.keyra.ie` where cookies reach the SOIP server).
   let proxyResult: AuthSessionPayload | null = null;
   try {
     const res = await fetch("/api/auth/session", {
@@ -163,39 +194,17 @@ async function fetchAuthSessionPayload(signal?: AbortSignal): Promise<AuthSessio
     // continue to fallback
   }
 
-  // 2) Cross-origin fetch directly to the auth backend. On cross-parent-domain
-  //    deployments (e.g. SOIP on `*.up.railway.app`) the browser will only
-  //    expose `.keyra.ie` cookies on a fetch whose URL is on `.keyra.ie`, so
-  //    this is the only way to discover an existing Keyra session — and is
-  //    the only result we can trust when the proxy returns "unauthenticated".
-  const authBackendUrl =
-    typeof process !== "undefined" ? process.env.NEXT_PUBLIC_SIMSECURE_AUTH_BACKEND_URL : "";
-  if (authBackendUrl?.trim()) {
-    try {
-      const base = authBackendUrl.replace(/\/+$/, "");
-      const res2 = await fetch(`${base}/auth/session`, {
-        method: "GET",
-        credentials: "include",
-        cache: "no-store",
-        headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
-        signal,
-      });
-      if (res2.ok) {
-        // Trust the cross-origin response in either direction — it's the only
-        // place the browser exposes the real auth cookies.
-        return (await res2.json()) as AuthSessionPayload;
-      }
-    } catch {
-      // ignore — CORS/network; we'll decide based on the proxy result below.
-    }
+  if (!crossDomain) {
+    // On `.keyra.ie`, the proxy is authoritative when cross-origin wasn't needed.
+    return proxyResult;
   }
 
-  // Cross-origin probe was unavailable. On cross-domain deployments the proxy
-  // result was made without the auth cookies, so a negative is meaningless.
-  // Returning `null` tells the caller "couldn't determine, keep current state".
-  if (isCrossDomainFromAuthBackend()) return null;
+  // Cross-domain: proxy can't see auth cookies — try cross-origin once more.
+  const crossOriginRetry = await fetchCrossOriginAuthSession(signal);
+  if (crossOriginRetry) return crossOriginRetry;
 
-  return proxyResult;
+  // CORS/network blocked — inconclusive; keep local keyra_session until we can probe.
+  return null;
 }
 
 function userFromAuthPayload(payload: AuthSessionPayload): KeyraSessionUser | null {
@@ -405,7 +414,10 @@ export function KeyraSessionProvider({
     try {
       channel = new BroadcastChannel(AUTH_CHANNEL);
       channel.onmessage = (e) => {
-        if (e?.data?.type === "logout") setUserState(null);
+        if (e?.data?.type === "logout") {
+          setUserState(null);
+          void clearKeyraCookieSession();
+        }
       };
     } catch {
       // BroadcastChannel not supported
@@ -418,6 +430,7 @@ export function KeyraSessionProvider({
     const onStorage = (event: StorageEvent) => {
       if (event.key === AUTH_STORAGE_KEY) {
         setUserState(null);
+        void clearKeyraCookieSession();
         void fetchSession();
       }
     };

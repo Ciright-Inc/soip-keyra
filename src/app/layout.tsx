@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Montserrat } from "next/font/google";
 import "./globals.css";
+import { SoipSessionWatcher } from "@/components/SoipSessionWatcher";
 import { KeyraSessionProvider } from "@/contexts/KeyraSessionContext";
 import { resolveKeyraSessionFromCookies } from "@/lib/keyraSessionServer";
 import type { KeyraSessionUser } from "@/lib/keyraSessionTypes";
@@ -45,7 +46,10 @@ export default async function RootLayout({
         />
       </head>
       <body className="min-h-full antialiased">
-        <KeyraSessionProvider initialUser={initialUser}>{children}</KeyraSessionProvider>
+        <KeyraSessionProvider initialUser={initialUser}>
+          <SoipSessionWatcher />
+          {children}
+        </KeyraSessionProvider>
       </body>
     </html>
   );
