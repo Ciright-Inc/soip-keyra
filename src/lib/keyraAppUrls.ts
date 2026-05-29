@@ -7,6 +7,18 @@ function trimSlash(s: string): string {
   return s.replace(/\/+$/, "");
 }
 
+/**
+ * Force an absolute origin: if `raw` has no http(s) protocol, prepend `https://`.
+ * Defends against env vars set without a scheme (e.g. NEXT_PUBLIC_SOIP_URL=soip.keyra.ie).
+ */
+function ensureHttpProtocol(raw: string): string {
+  const v = raw.trim();
+  if (!v) return v;
+  if (v.startsWith("http://") || v.startsWith("https://")) return v;
+  if (v.startsWith("localhost") || v.startsWith("127.0.0.1")) return `http://${v}`;
+  return `https://${v}`;
+}
+
 export function canonicalKeyraHostname(hostname: string): string {
   return hostname.toLowerCase() === "www.keyra.ie" ? "keyra.ie" : hostname;
 }
@@ -26,7 +38,9 @@ export function normalizeKeyraReturnUrl(raw: string): string {
 
 export function keyraGetStartedUrl(): string {
   return trimSlash(
-    process.env.NEXT_PUBLIC_GET_STARTED_URL?.trim() || "https://get-started.keyra.ie",
+    ensureHttpProtocol(
+      process.env.NEXT_PUBLIC_GET_STARTED_URL?.trim() || "https://get-started.keyra.ie",
+    ),
   );
 }
 
@@ -47,7 +61,7 @@ export function soipPublicOrigin(): string {
   const explicit =
     process.env.NEXT_PUBLIC_SOIP_URL?.trim() ||
     process.env.NEXT_PUBLIC_SOIP_PUBLIC_ORIGIN?.trim();
-  if (explicit) return trimSlash(explicit);
+  if (explicit) return trimSlash(ensureHttpProtocol(explicit));
   if (process.env.NODE_ENV !== "production") return "http://localhost:3060";
   return "https://soip.keyra.ie";
 }
@@ -59,18 +73,23 @@ export function soipPublicOrigin(): string {
 export function buildGetStartedAccessUrl(returnToAbsoluteUrl: string): string {
   const gs = keyraGetStartedUrl();
   let u = returnToAbsoluteUrl.trim();
+  // If the caller passes a path or a host without protocol, treat it as same-origin.
   if (!u.startsWith("http://") && !u.startsWith("https://")) {
-    const base = soipPublicOrigin();
+    const base = ensureHttpProtocol(soipPublicOrigin());
     const path = u.startsWith("/") ? u : `/${u}`;
     u = `${trimSlash(base)}${path}`;
   }
   u = normalizeKeyraReturnUrl(u);
+  // Final guard: if we somehow still don't have a scheme, force https before
+  // handing the URL to get-started — get-started silently drops return URLs
+  // that don't start with `http`.
+  u = ensureHttpProtocol(u);
   return `${gs}/?return=${encodeURIComponent(u)}`;
 }
 
 /** After Get Started / hosted login — sync auth into keyra_session, then open `nextPath`. */
 export function buildKeyraSessionContinueUrl(nextPath: string): string {
-  const base = soipPublicOrigin();
+  const base = ensureHttpProtocol(soipPublicOrigin());
   const path = nextPath.startsWith("/") ? nextPath : `/${nextPath}`;
   return `${trimSlash(base)}/api/keyra/session/continue?next=${encodeURIComponent(path)}`;
 }

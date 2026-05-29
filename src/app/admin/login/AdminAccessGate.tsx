@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { formatPhoneDisplay } from "@/lib/keyraSessionDisplay";
 import { buildAdminGetStartedAccessUrl } from "@/lib/keyraAppUrls";
 
@@ -19,7 +19,13 @@ export function AdminAccessGate({
   nextPath,
   alreadyAuthorized = false,
 }: Props) {
-  const loginHref = useMemo(() => buildAdminGetStartedAccessUrl(nextPath), [nextPath]);
+  // SSR builds the URL from env; once the browser hydrates we recompute so
+  // `window.location.origin` is used (correct even when env vars are wrong).
+  const ssrLoginHref = useMemo(() => buildAdminGetStartedAccessUrl(nextPath), [nextPath]);
+  const [loginHref, setLoginHref] = useState(ssrLoginHref);
+  useEffect(() => {
+    setLoginHref(buildAdminGetStartedAccessUrl(nextPath));
+  }, [nextPath]);
 
   const isNoAccess = reason === "no_access";
 
