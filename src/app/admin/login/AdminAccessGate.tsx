@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { formatPhoneDisplay } from "@/lib/keyraSessionDisplay";
 import { buildAdminGetStartedAccessUrl } from "@/lib/keyraAppUrls";
+import { AdminSignOutButton } from "@/components/admin/AdminSignOutButton";
 
 type Props = {
   reason: "sign_in" | "no_access";
@@ -120,15 +121,20 @@ export function AdminAccessGate({
               </a>
             ) : null}
             {/*
-              "Back to SOIP home" only makes sense when the visitor already has
-              a keyra_session cookie — i.e. no_access (logged in but missing
-              admin rights) or alreadyAuthorized. In the sign_in case the
-              middleware would just bounce them back to this gate.
+              "Back to SOIP home" and "Sign out" only make sense when the
+              visitor already has a keyra_session cookie — i.e. no_access
+              (logged in but missing admin rights) or alreadyAuthorized. In
+              the sign_in case the middleware would just bounce them back.
+              "Sign out" uses the same handler as the header button so all
+              admin sessions (Keyra + SimSecure + SOIP cookie) clear together.
             */}
             {isNoAccess || alreadyAuthorized ? (
-              <Link href="/" className="ds-btn-secondary">
-                Back to SOIP home
-              </Link>
+              <>
+                <Link href="/" className="ds-btn-secondary">
+                  Back to SOIP home
+                </Link>
+                <AdminSignOutButton />
+              </>
             ) : null}
           </div>
         </div>
