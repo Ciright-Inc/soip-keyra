@@ -1,7 +1,6 @@
 "use client";
 
 import { useKeyraSession } from "@/contexts/KeyraSessionContext";
-import { usePathname } from "next/navigation";
 import { useState } from "react";
 
 type Props = {
@@ -11,20 +10,15 @@ type Props = {
 /** Clears Keyra + SimSecure sessions and redirects to /admin/login. */
 export function AdminSignOutButton({ className = "ds-btn-secondary is-sm" }: Props) {
   const { logout } = useKeyraSession();
-  const pathname = usePathname() ?? "/admin";
   const [signingOut, setSigningOut] = useState(false);
 
   async function handleSignOut() {
     if (signingOut) return;
     setSigningOut(true);
     try {
+      // `logout()` clears local + SimSecure sessions, broadcasts, and navigates
+      // to `/admin/login` (via Get Started on cross-domain hosts).
       await logout();
-      // Preserve the page the user logged out from so they return there after
-      // re-authenticating. Same-origin paths only.
-      const safeNext =
-        pathname.startsWith("/") && !pathname.startsWith("//") ? pathname : "/";
-      const params = new URLSearchParams({ reason: "sign_in", next: safeNext });
-      window.location.assign(`/admin/login?${params.toString()}`);
     } catch {
       setSigningOut(false);
     }

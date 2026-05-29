@@ -98,3 +98,15 @@ export function buildKeyraSessionContinueUrl(nextPath: string): string {
 export function buildAdminGetStartedAccessUrl(nextPath: string): string {
   return buildGetStartedAccessUrl(buildKeyraSessionContinueUrl(nextPath));
 }
+
+/** Top-level logout on Get Started — clears `.keyra.ie` SimSecure cookies, then returns. */
+export function buildGetStartedLogoutUrl(returnToAbsoluteUrl: string): string {
+  const gs = keyraGetStartedUrl();
+  const u = ensureHttpProtocol(returnToAbsoluteUrl.trim());
+  return `${gs}/logout?return=${encodeURIComponent(u)}`;
+}
+
+/** Hidden iframe target for cross-domain session probes (first-party on get-started). */
+export function buildGetStartedEmbedSessionUrl(): string {
+  return `${keyraGetStartedUrl()}/embed/session`;
+}

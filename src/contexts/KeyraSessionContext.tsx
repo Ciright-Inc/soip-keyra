@@ -2,6 +2,8 @@
 
 import type { KeyraSessionUser } from "@/lib/keyraSessionTypes";
 import { formatPhoneDisplay } from "@/lib/keyraSessionDisplay";
+import { buildGetStartedLogoutUrl } from "@/lib/keyraAppUrls";
+import { probeKeyraSessionViaEmbed } from "@/lib/probeKeyraSessionViaEmbed";
 import {
   createContext,
   useCallback,
@@ -168,12 +170,35 @@ async function fetchCrossOriginAuthSession(
 async function fetchAuthSessionPayload(signal?: AbortSignal): Promise<AuthSessionPayload | null> {
   const crossDomain = isCrossDomainFromAuthBackend();
 
-  // On Railway / other cross-parent hosts, probe the auth backend first — the
-  // browser attaches `.keyra.ie` SimSecure cookies only on that origin. This is
-  // how we detect login AND logout on other Keyra sites without a hard refresh.
+  // Cross-domain (Railway): iframe on get-started.keyra.ie is first-party for
+  // `.keyra.ie` cookies — authoritative for both login and logout, matching
+  // keyra admin on `.keyra.ie`.
   if (crossDomain) {
+    const embed = await probeKeyraSessionViaEmbed(signal);
+    if (embed !== null) return embed;
+
+    // Direct cross-origin fetch may succeed for `authenticated:true` only; a
+    // `false` answer is often cookie-partition noise, not a real sign-out.
     const crossOrigin = await fetchCrossOriginAuthSession(signal);
-    if (crossOrigin) return crossOrigin;
+    if (crossOrigin?.authenticated) return crossOrigin;
+
+    let proxyResult: AuthSessionPayload | null = null;
+    try {
+      const res = await fetch("/api/auth/session", {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store",
+        headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+        signal,
+      });
+      if (res.ok) {
+        proxyResult = (await res.json()) as AuthSessionPayload;
+        if (proxyResult?.authenticated) return proxyResult;
+      }
+    } catch {
+      // inconclusive
+    }
+    return null;
   }
 
   // Same-origin proxy (works on `*.keyra.ie` where cookies reach the SOIP server).
@@ -194,17 +219,10 @@ async function fetchAuthSessionPayload(signal?: AbortSignal): Promise<AuthSessio
     // continue to fallback
   }
 
-  if (!crossDomain) {
-    // On `.keyra.ie`, the proxy is authoritative when cross-origin wasn't needed.
-    return proxyResult;
-  }
+  const crossOrigin = await fetchCrossOriginAuthSession(signal);
+  if (crossOrigin) return crossOrigin;
 
-  // Cross-domain: proxy can't see auth cookies — try cross-origin once more.
-  const crossOriginRetry = await fetchCrossOriginAuthSession(signal);
-  if (crossOriginRetry) return crossOriginRetry;
-
-  // CORS/network blocked — inconclusive; keep local keyra_session until we can probe.
-  return null;
+  return proxyResult;
 }
 
 function userFromAuthPayload(payload: AuthSessionPayload): KeyraSessionUser | null {
@@ -238,28 +256,37 @@ function mergeKeyraSessionUsers(
   };
 }
 
-async function fetchSessionUser(signal?: AbortSignal): Promise<KeyraSessionUser | null> {
+async function fetchSessionUser(
+  signal?: AbortSignal,
+  /** True once the get-started iframe probe returned authenticated in this tab. */
+  embedAuthConfirmedRef?: { current: boolean },
+): Promise<KeyraSessionUser | null> {
   const [cookieUser, payload] = await Promise.all([
     fetchKeyraCookieUser(signal),
     fetchAuthSessionPayload(signal),
   ]);
 
-  // Auth backend says "not authenticated".
+  if (payload?.authenticated && payload?.user?.phone && embedAuthConfirmedRef) {
+    embedAuthConfirmedRef.current = true;
+  }
+
+  // Auth backend says "not authenticated" — authoritative when the probe ran
+  // on a trustworthy channel (same-origin proxy on `.keyra.ie`, or get-started
+  // iframe on cross-domain Railway).
   //
-  // Same-domain (e.g. `app.keyra.ie` ↔ `auth.keyra.ie`): the proxy can read
-  // the user's SimSecure cookies, so this answer is authoritative — clear
-  // the local session so logout from another Keyra tab is honoured.
-  //
-  // Cross-domain (e.g. SOIP on `*.up.railway.app`): browsers partition
-  // third-party cookies, so the probe sees no cookies and lies "false" even
-  // when the user is still signed in elsewhere. Treat this as inconclusive
-  // and keep the locally-signed `keyra_session` cookie. Matches keyra
-  // server's `keyraSessionServer.ts` behaviour. SOIP-initiated logout still
-  // runs normally because the user explicitly clicked Log out.
+  // On cross-domain, if we never saw SimSecure active in this tab (phone-bridge
+  // login only), keep the signed `keyra_session` cookie. Once embed confirmed
+  // SimSecure, honour sign-out from other Keyra sites (instant global logout).
   if (payload && payload.authenticated === false) {
-    if (isCrossDomainFromAuthBackend() && cookieUser) {
+    if (
+      isCrossDomainFromAuthBackend() &&
+      cookieUser &&
+      embedAuthConfirmedRef &&
+      !embedAuthConfirmedRef.current
+    ) {
       return cookieUser;
     }
+    if (embedAuthConfirmedRef) embedAuthConfirmedRef.current = false;
     await Promise.all([clearSimsecureAuthSession(), clearKeyraCookieSession()]);
     return null;
   }
@@ -323,6 +350,7 @@ export function KeyraSessionProvider({
   const [user, setUserState] = useState<KeyraSessionUser | null>(initialUser);
   const [initialized, setInitialized] = useState(false);
   const fetchingRef = useRef(false);
+  const embedAuthConfirmedRef = useRef(false);
 
   const fetchSession = useCallback(async () => {
     if (fetchingRef.current) return;
@@ -330,7 +358,7 @@ export function KeyraSessionProvider({
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), SESSION_TIMEOUT_MS);
     try {
-      const next = await fetchSessionUser(controller.signal);
+      const next = await fetchSessionUser(controller.signal, embedAuthConfirmedRef);
       setUserState((prev) => {
         if (next === null) return null;
         if (
@@ -450,6 +478,7 @@ export function KeyraSessionProvider({
   }, [fetchSession]);
 
   const logout = useCallback(async () => {
+    embedAuthConfirmedRef.current = false;
     await Promise.all([clearSimsecureAuthSession(), clearKeyraCookieSession()]);
     setUserState(null);
     // Reset the per-tab "we already bridged through Get Started" marker so
@@ -469,6 +498,24 @@ export function KeyraSessionProvider({
     } catch {
       // ignore — private mode or storage disabled
     }
+
+    if (typeof window === "undefined") return;
+
+    const path = window.location.pathname;
+    const safeNext = path.startsWith("/") && !path.startsWith("//") ? path : "/";
+    const params = new URLSearchParams({ reason: "sign_in", next: safeNext });
+    const loginPath = `/admin/login?${params.toString()}`;
+
+    // On Railway / cross-domain hosts, top-level navigation through Get Started
+    // clears `.keyra.ie` SimSecure cookies so other Keyra tabs sign out too.
+    if (isCrossDomainFromAuthBackend()) {
+      window.location.assign(
+        buildGetStartedLogoutUrl(`${window.location.origin}${loginPath}`),
+      );
+      return;
+    }
+
+    window.location.assign(loginPath);
   }, []);
 
   const isAuthenticated = !!user;
