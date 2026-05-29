@@ -10,6 +10,7 @@ const KEYRA_SESSION_COOKIE = "keyra_session";
  */
 const PUBLIC_EXACT_PATHS = new Set<string>([
   "/admin/login",
+  "/api/health",
   "/auth/continue",
   "/favicon.ico",
   "/favicon.png",

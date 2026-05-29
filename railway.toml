@@ -4,6 +4,7 @@
 builder = "nixpacks"
 
 [deploy]
-startCommand = "/bin/sh -c \"npm run deploy:db && exec npm run start\""
-healthcheckPath = "/"
+# `npm start` runs scripts/start-with-db.mjs: db push/seed (best-effort) then next start.
+startCommand = "npm start"
+healthcheckPath = "/api/health"
 healthcheckTimeout = 300
